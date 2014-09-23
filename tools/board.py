@@ -30,9 +30,9 @@ class Board():
             for letter in row:
                 if letter.lower() in ('rnbqkp'):
                     if letter.islower():
-                        output.append('b' + letter)
+                        output.append('b' + letter.lower())
                     else:
-                        output.append('w' + letter)
+                        output.append('w' + letter.lower())
                 else:
                     blanks = int(letter)
                     output.extend(['--'] * blanks)
