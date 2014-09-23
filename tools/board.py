@@ -37,4 +37,4 @@ class Board():
                     blanks = int(letter)
                     output.extend(['--'] * blanks)
 
-        return ''.join(output)
+        return output
