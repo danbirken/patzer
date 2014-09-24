@@ -16,3 +16,4 @@ class SingleMoveEngine():
     def make_best_move(self, fen, moves, timeout=None, **kwargs):
         best_move = self.patzer.go_and_get_best_move(timeout=timeout, **kwargs)
         self.patzer.set_fen_position(fen, moves=moves + [best_move.best_move])
+        return best_move
