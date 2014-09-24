@@ -1,6 +1,7 @@
-import threading
-import queue
 import collections
+import queue
+import re
+import threading
 
 class Error(Exception):
     pass
@@ -17,6 +18,44 @@ class BestMoveResponse(collections.namedtuple(
     MATE_IN_ZERO = 1
     MATE_IN_ONE = 2
     DRAWN = 3
+
+    MATE_PARSER = re.compile(r'score mate ([01])(?:$|[^0-9])')
+
+    @classmethod
+    def generate_from_best_move_output(cls, move_output):
+        score = None
+        for line in reversed(move_output):
+            if line.startswith('info depth'):
+                score = cls.parse_info_line(line)
+                break
+
+        best_move = move_output[-1]
+        best_move_split = best_move.split()
+
+        if 'ponder' in best_move:
+            return cls(
+                best_move=best_move_split[1],
+                ponder=best_move_split[3],
+                score=score
+            )
+        else:
+            return cls(
+                best_move=best_move_split[1],
+                ponder=None,
+                score=score
+            )
+
+    @classmethod
+    def parse_info_line(cls, info_line):
+        mate_matches = cls.MATE_PARSER.search(info_line)
+
+        if mate_matches:
+            if mate_matches.group(1) == '0':
+                return BestMoveResponse.MATE_IN_ZERO
+            else:
+                return BestMoveResponse.MATE_IN_ONE
+        elif 'depth 0' in info_line and 'score cp 0' in info_line:
+            return BestMoveResponse.DRAWN
 
 class EngineInterface():
     class StreamReader(threading.Thread):
@@ -126,40 +165,18 @@ class Patzer():
         self.engine_interface.write(go_command)
 
     def _parse_score(self, info_line):
-        if 'score mate 0' in info_line:
+        if 'score mate 0 ' in info_line:
             return BestMoveResponse.MATE_IN_ZERO
-        elif 'score mate 1' in info_line:
+        elif 'score mate 1 ' in info_line:
             return BestMoveResponse.MATE_IN_ONE
         elif 'depth 0' in info_line and 'score cp 0' in info_line:
             return BestMoveResponse.DRAWN
 
     def get_best_move(self, timeout=None):
-        move_info = self.engine_interface.wait_for_startswith(
+        move_output = self.engine_interface.wait_for_startswith(
             'bestmove', timeout=timeout
         )
-        
-        score = None
-        info_line = None
-        for line in reversed(move_info):
-            if line.startswith('info depth'):
-                score = self._parse_score(line)
-                break
-
-        best_move = move_info[-1]
-        best_move_split = best_move.split()
-
-        if 'ponder' in best_move:
-            return BestMoveResponse(
-                best_move=best_move_split[1],
-                ponder=best_move_split[3],
-                score=score
-            )
-        else:
-            return BestMoveResponse(
-                best_move=best_move_split[1],
-                ponder=None,
-                score=score
-            )
+        return BestMoveResponse.generate_from_best_move_output(move_output)
 
     def _get_go_command(self, **kwargs):
         parameters = []
